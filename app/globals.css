@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f7f4ef;
+  --surface: #ffffff;
+  --surface-muted: #efebe3;
+  --primary: #7ba098;
+  --primary-soft: #d6e3dd;
+  --accent: #c9a7c7;
+  --text: #2d3a36;
+  --text-muted: #6b7770;
+  --success: #94b49f;
+  --warn: #e0b084;
+  --border: #e5e0d6;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Source Serif Pro", "Source Serif 4", Georgia, serif;
+}
+
+.dark {
+  --bg: #1a201e;
+  --surface: #252c2a;
+  --surface-muted: #1f2624;
+  --primary: #94b5ac;
+  --primary-soft: #2e3937;
+  --accent: #b79ab6;
+  --text: #e8e4dc;
+  --text-muted: #9ca8a3;
+  --success: #9cc0a6;
+  --warn: #d9b187;
+  --border: #2e3633;
+}
+
+html,
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" on;
+}
+
+/* Treat numerics with tabular figures for stable layouts */
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Buttons get visible focus rings (accessibility) */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Prevent iOS double-tap zoom on tappable elements */
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* Smooth max-width container for the whole app — mobile-first */
+.app-shell {
+  max-width: 480px;
+  margin-inline: auto;
+  min-height: 100dvh;
+  position: relative;
+}
