@@ -249,7 +249,10 @@ export default function LogFoodPage() {
 
       {/* Bin (multi-add tray) */}
       {bin.length > 0 && (
-        <div className="fixed bottom-0 inset-x-0 max-w-[480px] mx-auto bg-surface border-t border-border p-4 z-30">
+        <div
+          className="fixed bottom-0 inset-x-0 max-w-[480px] mx-auto bg-surface border-t border-border px-4 pt-4 z-50"
+          style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+        >
           <div className="max-h-48 overflow-y-auto mb-3 space-y-1.5">
             {bin.map((b) => (
               <div
