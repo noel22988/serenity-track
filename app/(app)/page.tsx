@@ -123,9 +123,11 @@ export default async function TodayPage() {
       />
 
       <HydrationCard
-        initialGlasses={wellnessToday?.hydration_glasses ?? 0}
+        initialMl={wellnessToday?.hydration_ml ?? 0}
         userId={user.id}
         todayDate={todayStr}
+        unit={profile?.hydration_unit ?? "glasses"}
+        targetMl={profile?.hydration_target_ml ?? 2000}
       />
     </div>
   );

@@ -2,10 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Calendar } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { lbToKg } from "@/lib/utils";
+
+// Format a Date as "YYYY-MM-DDTHH:mm" in LOCAL time (what <input type=datetime-local> expects)
+function toLocalInputValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
 
 export default function LogWeightPage() {
   const router = useRouter();
@@ -13,6 +22,7 @@ export default function LogWeightPage() {
   const [unit, setUnit] = useState<"kg" | "lb">("kg");
   const [value, setValue] = useState("");
   const [note, setNote] = useState("");
+  const [when, setWhen] = useState<string>(toLocalInputValue(new Date()));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,9 +52,10 @@ export default function LogWeightPage() {
     setSaving(true);
     setError(null);
     const weight_kg = unit === "kg" ? num : lbToKg(num);
+    const logged_at = new Date(when).toISOString();
     const { error } = await supabase.from("weight_entries").insert({
       weight_kg,
-      logged_at: new Date().toISOString(),
+      logged_at,
       notes: note || null,
     });
     if (error) {
@@ -54,6 +65,14 @@ export default function LogWeightPage() {
     }
     router.push("/");
     router.refresh();
+  };
+
+  const maxWhen = toLocalInputValue(new Date());
+
+  const setOffsetDays = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    setWhen(toLocalInputValue(d));
   };
 
   return (
@@ -81,16 +100,47 @@ export default function LogWeightPage() {
         </p>
       </div>
 
-      <div className="flex items-baseline justify-center gap-2 mt-12">
+      <div className="flex items-baseline justify-center gap-2 mt-8">
         <span className="text-6xl font-light numeric">{value || "0.0"}</span>
         <span className="text-xl text-text-muted">{unit}</span>
+      </div>
+
+      {/* Date / time picker */}
+      <div className="mt-6 bg-surface rounded-md p-3 border border-border">
+        <div className="flex items-center gap-2 text-text-muted text-xs mb-2">
+          <Calendar size={14} />
+          <span>When was this?</span>
+        </div>
+        <input
+          type="datetime-local"
+          value={when}
+          max={maxWhen}
+          onChange={(e) => setWhen(e.target.value)}
+          className="w-full bg-bg border border-border rounded-sm px-3 py-2 text-sm numeric"
+        />
+        <div className="flex gap-2 mt-2 flex-wrap">
+          {[
+            { label: "Now", days: 0 },
+            { label: "Yesterday", days: 1 },
+            { label: "2 days ago", days: 2 },
+            { label: "3 days ago", days: 3 },
+          ].map((p) => (
+            <button
+              key={p.label}
+              onClick={() => setOffsetDays(p.days)}
+              className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Optional note — time of day, how you feel…"
-        className="mt-8 w-full bg-surface border border-border rounded-md px-4 py-3 text-base min-h-[68px] resize-none"
+        className="mt-4 w-full bg-surface border border-border rounded-md px-4 py-3 text-base min-h-[60px] resize-none"
         rows={2}
       />
 
@@ -100,7 +150,7 @@ export default function LogWeightPage() {
         </p>
       )}
 
-      <div className="mt-auto">
+      <div className="mt-auto pt-4">
         <NumberPad onPress={append} onBackspace={backspace} />
         <button
           onClick={save}
@@ -128,7 +178,7 @@ function NumberPad({
         <button
           key={k}
           onClick={() => (k === "⌫" ? onBackspace() : onPress(k))}
-          className="bg-surface text-text rounded-md py-4 text-2xl font-light active:bg-surface-muted"
+          className="bg-surface text-text rounded-md py-3.5 text-2xl font-light active:bg-surface-muted"
         >
           {k}
         </button>

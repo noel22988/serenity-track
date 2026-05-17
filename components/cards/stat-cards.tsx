@@ -14,6 +14,7 @@ const MEAL_LABELS: Record<FoodLog["meal_type"], string> = {
 export function NourishmentCard({ logs }: { logs: FoodLog[] }) {
   const total = Math.round(logs.reduce((s, l) => s + Number(l.calories), 0));
   const meals = new Set(logs.map((l) => l.meal_type));
+  const hasAny = logs.length > 0;
 
   return (
     <Link href="/log/food" className="block flex-1">
@@ -21,7 +22,10 @@ export function NourishmentCard({ logs }: { logs: FoodLog[] }) {
         <p className="text-xs text-text-muted mb-1.5">Nourishment</p>
         <p className="text-2xl font-light numeric">{total.toLocaleString()}</p>
         <p className="text-xs text-text-muted mt-0.5">kcal today</p>
-        <div className="flex gap-1.5 mt-3">
+        <p className="text-[11px] text-text-muted mt-2 leading-snug">
+          {hasAny ? "Tap to add more" : "Tap to log meals"}
+        </p>
+        <div className="flex gap-1.5 mt-2">
           {(["breakfast", "lunch", "dinner", "snack"] as const).map((m) => (
             <span
               key={m}
@@ -44,6 +48,7 @@ export function NourishmentCard({ logs }: { logs: FoodLog[] }) {
 export function MovementCard({ logs }: { logs: ExerciseLog[] }) {
   const totalMin = logs.reduce((s, l) => s + l.duration_minutes, 0);
   const last = logs[0];
+  const hasAny = logs.length > 0;
 
   return (
     <Link href="/log/exercise" className="block flex-1">
@@ -56,7 +61,10 @@ export function MovementCard({ logs }: { logs: ExerciseLog[] }) {
         <p className="text-xs text-text-muted mt-0.5">
           {last ? `${last.exercise_type} · ${last.intensity}` : "Nothing yet"}
         </p>
-        <div className="flex gap-1 mt-3">
+        <p className="text-[11px] text-text-muted mt-2 leading-snug">
+          {hasAny ? "Tap to add more" : "Tap to log activity"}
+        </p>
+        <div className="flex gap-1 mt-2">
           {[1, 2, 3].map((i) => {
             const filled = last
               ? (last.intensity === "light" && i === 1) ||

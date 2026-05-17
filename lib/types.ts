@@ -7,6 +7,8 @@ export type Profile = {
   treatment_type: string | null;
   treatment_start_date: string | null;
   theme_preference: "system" | "light" | "dark";
+  hydration_unit: "glasses" | "ml";
+  hydration_target_ml: number;
 };
 
 export type WeightEntry = {
@@ -56,6 +58,22 @@ export type WellnessEntry = {
   mood_rating: number | null;
   energy_rating: number | null;
   hydration_glasses: number;
+  hydration_ml: number;
   symptoms: string[] | null;
   journal_notes: string | null;
+};
+
+export type CoachInvite = {
+  code: string;
+  client_id: string;
+  created_at: string;
+  expires_at: string;
+  used_at: string | null;
+};
+
+export type CoachRelationship = {
+  id: string;
+  coach_id: string;
+  client_id: string;
+  created_at: string;
 };
