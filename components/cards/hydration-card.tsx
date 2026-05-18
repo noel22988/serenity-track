@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import { Card } from "@/components/ui/card";
 import { Minus, Plus, Calendar, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -49,7 +49,7 @@ export function HydrationCard({
   const [ml, setMl] = useState(initialMl);
   const [showPicker, setShowPicker] = useState(false);
   const [, startTransition] = useTransition();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   // If parent prop changes (dashboard navigated to another day), follow it.
   useEffect(() => {
