@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Calendar } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const TYPES = ["Walk", "Yoga", "Swim", "Strength", "Cycle", "Stretch", "Other"];
@@ -14,13 +14,33 @@ const INTENSITIES = [
   { value: "hard", label: "Hard", dots: 3 },
 ] as const;
 
+function toLocalInputValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+function defaultPerformedAt(dateParam: string | null): string {
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const [y, m, d] = dateParam.split("-").map(Number);
+    const dt = new Date(y, m - 1, d, 12, 0, 0);
+    return toLocalInputValue(dt);
+  }
+  return toLocalInputValue(new Date());
+}
+
 export default function LogExercisePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const dateParam = searchParams?.get("date") ?? null;
   const supabase = createClient();
   const [type, setType] = useState("Walk");
   const [duration, setDuration] = useState(20);
   const [intensity, setIntensity] = useState<"light" | "medium" | "hard">("light");
   const [notes, setNotes] = useState("");
+  const [performedAt, setPerformedAt] = useState<string>(defaultPerformedAt(dateParam));
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -31,14 +51,14 @@ export default function LogExercisePage() {
       duration_minutes: duration,
       intensity,
       notes: notes || null,
-      performed_at: new Date().toISOString(),
+      performed_at: new Date(performedAt).toISOString(),
     });
     if (error) {
       setSaving(false);
       alert(error.message);
       return;
     }
-    router.push("/");
+    router.push(dateParam ? `/?date=${dateParam}` : "/");
     router.refresh();
   };
 
@@ -78,6 +98,50 @@ export default function LogExercisePage() {
               {t}
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="mt-6">
+        <div className="flex items-center gap-2 text-text-muted text-xs mb-2">
+          <Calendar size={14} />
+          <span className="uppercase tracking-wider">When</span>
+        </div>
+        <input
+          type="datetime-local"
+          value={performedAt}
+          max={toLocalInputValue(new Date())}
+          onChange={(e) => setPerformedAt(e.target.value)}
+          className="w-full bg-surface border border-border rounded-sm px-3 py-2 text-sm numeric"
+        />
+        <div className="flex gap-2 mt-2 flex-wrap">
+          <button
+            onClick={() => setPerformedAt(toLocalInputValue(new Date()))}
+            className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
+          >
+            Now
+          </button>
+          <button
+            onClick={() => {
+              const d = new Date();
+              d.setDate(d.getDate() - 1);
+              d.setHours(12, 0, 0, 0);
+              setPerformedAt(toLocalInputValue(d));
+            }}
+            className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
+          >
+            Yesterday
+          </button>
+          <button
+            onClick={() => {
+              const d = new Date();
+              d.setDate(d.getDate() - 2);
+              d.setHours(12, 0, 0, 0);
+              setPerformedAt(toLocalInputValue(d));
+            }}
+            className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
+          >
+            2 days ago
+          </button>
         </div>
       </section>
 

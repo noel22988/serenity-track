@@ -11,17 +11,24 @@ const MEAL_LABELS: Record<FoodLog["meal_type"], string> = {
   snack: "S",
 };
 
-export function NourishmentCard({ logs }: { logs: FoodLog[] }) {
+export function NourishmentCard({
+  logs,
+  forDate,
+}: {
+  logs: FoodLog[];
+  forDate?: string;
+}) {
   const total = Math.round(logs.reduce((s, l) => s + Number(l.calories), 0));
   const meals = new Set(logs.map((l) => l.meal_type));
   const hasAny = logs.length > 0;
+  const href = forDate ? `/log/food?date=${forDate}` : "/log/food";
 
   return (
-    <Link href="/log/food" className="block flex-1">
+    <Link href={href} className="block flex-1">
       <Card className="h-full">
         <p className="text-xs text-text-muted mb-1.5">Nourishment</p>
         <p className="text-2xl font-light numeric">{total.toLocaleString()}</p>
-        <p className="text-xs text-text-muted mt-0.5">kcal today</p>
+        <p className="text-xs text-text-muted mt-0.5">kcal</p>
         <p className="text-[11px] text-text-muted mt-2 leading-snug">
           {hasAny ? "Tap to add more" : "Tap to log meals"}
         </p>
@@ -45,13 +52,20 @@ export function NourishmentCard({ logs }: { logs: FoodLog[] }) {
   );
 }
 
-export function MovementCard({ logs }: { logs: ExerciseLog[] }) {
+export function MovementCard({
+  logs,
+  forDate,
+}: {
+  logs: ExerciseLog[];
+  forDate?: string;
+}) {
   const totalMin = logs.reduce((s, l) => s + l.duration_minutes, 0);
   const last = logs[0];
   const hasAny = logs.length > 0;
+  const href = forDate ? `/log/exercise?date=${forDate}` : "/log/exercise";
 
   return (
-    <Link href="/log/exercise" className="block flex-1">
+    <Link href={href} className="block flex-1">
       <Card className="h-full">
         <p className="text-xs text-text-muted mb-1.5">Movement</p>
         <p className="text-2xl font-light numeric">

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Search, Star, Plus, Minus } from "lucide-react";
+import { ArrowLeft, Search, Star, Plus, Minus, Calendar } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { defaultMealType } from "@/lib/utils";
 import type { Food, FoodLog } from "@/lib/types";
@@ -17,10 +17,30 @@ const MEALS = [
 
 type Bin = { food: Food; servings: number };
 
+function toLocalInputValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+function defaultEatenAt(dateParam: string | null): string {
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const [y, m, d] = dateParam.split("-").map(Number);
+    const dt = new Date(y, m - 1, d, 12, 0, 0);
+    return toLocalInputValue(dt);
+  }
+  return toLocalInputValue(new Date());
+}
+
 export default function LogFoodPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const dateParam = searchParams?.get("date") ?? null;
   const supabase = createClient();
   const [meal, setMeal] = useState<FoodLog["meal_type"]>(defaultMealType());
+  const [eatenAt, setEatenAt] = useState<string>(defaultEatenAt(dateParam));
   const [query, setQuery] = useState("");
   const [foods, setFoods] = useState<Food[]>([]);
   const [recent, setRecent] = useState<Food[]>([]);
@@ -103,13 +123,14 @@ export default function LogFoodPage() {
   const save = async () => {
     if (bin.length === 0 || saving) return;
     setSaving(true);
+    const eatenAtIso = new Date(eatenAt).toISOString();
     const rows = bin.map((b) => ({
       food_id: b.food.id.startsWith("recent-") ? null : b.food.id,
       food_name_snapshot: b.food.name,
       calories: b.food.calories_per_serving * b.servings,
       servings: b.servings,
       meal_type: meal,
-      eaten_at: new Date().toISOString(),
+      eaten_at: eatenAtIso,
     }));
     const { error } = await supabase.from("food_logs").insert(rows);
     if (error) {
@@ -117,7 +138,7 @@ export default function LogFoodPage() {
       alert(error.message);
       return;
     }
-    router.push("/");
+    router.push(dateParam ? `/?date=${dateParam}` : "/");
     router.refresh();
   };
 
@@ -164,6 +185,51 @@ export default function LogFoodPage() {
             {m.label}
           </button>
         ))}
+      </div>
+
+      {/* Date / time */}
+      <div className="bg-surface rounded-md p-3 border border-border mb-3">
+        <div className="flex items-center gap-2 text-text-muted text-xs mb-2">
+          <Calendar size={14} />
+          <span>When did you eat this?</span>
+        </div>
+        <input
+          type="datetime-local"
+          value={eatenAt}
+          max={toLocalInputValue(new Date())}
+          onChange={(e) => setEatenAt(e.target.value)}
+          className="w-full bg-bg border border-border rounded-sm px-3 py-2 text-sm numeric"
+        />
+        <div className="flex gap-2 mt-2 flex-wrap">
+          <button
+            onClick={() => setEatenAt(toLocalInputValue(new Date()))}
+            className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
+          >
+            Now
+          </button>
+          <button
+            onClick={() => {
+              const d = new Date();
+              d.setDate(d.getDate() - 1);
+              d.setHours(12, 0, 0, 0);
+              setEatenAt(toLocalInputValue(d));
+            }}
+            className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
+          >
+            Yesterday noon
+          </button>
+          <button
+            onClick={() => {
+              const d = new Date();
+              d.setDate(d.getDate() - 2);
+              d.setHours(12, 0, 0, 0);
+              setEatenAt(toLocalInputValue(d));
+            }}
+            className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
+          >
+            2 days ago
+          </button>
+        </div>
       </div>
 
       {/* Search */}
