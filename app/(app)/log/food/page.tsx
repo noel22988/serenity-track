@@ -1,8 +1,6 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Search, Star, Plus, Minus, Calendar } from "lucide-react";
@@ -37,6 +35,14 @@ function defaultEatenAt(dateParam: string | null): string {
 }
 
 export default function LogFoodPage() {
+  return (
+    <Suspense>
+      <LogFoodPageInner />
+    </Suspense>
+  );
+}
+
+function LogFoodPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dateParam = searchParams?.get("date") ?? null;

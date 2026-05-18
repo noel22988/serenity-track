@@ -1,8 +1,6 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Calendar } from "lucide-react";
@@ -34,6 +32,14 @@ function defaultPerformedAt(dateParam: string | null): string {
 }
 
 export default function LogExercisePage() {
+  return (
+    <Suspense>
+      <LogExercisePageInner />
+    </Suspense>
+  );
+}
+
+function LogExercisePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dateParam = searchParams?.get("date") ?? null;
