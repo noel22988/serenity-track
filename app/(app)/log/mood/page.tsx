@@ -49,19 +49,24 @@ export default function LogMoodPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    supabase
-      .from("wellness_entries")
-      .select("*")
-      .eq("logged_for_date", today)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setMood(data.mood_rating);
-          setEnergy(data.energy_rating);
-          setSymptoms(data.symptoms ?? []);
-          setJournal(data.journal_notes ?? "");
-        }
-      });
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("wellness_entries")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("logged_for_date", today)
+        .maybeSingle();
+      if (data) {
+        setMood(data.mood_rating);
+        setEnergy(data.energy_rating);
+        setSymptoms(data.symptoms ?? []);
+        setJournal(data.journal_notes ?? "");
+      }
+    })();
   }, [supabase, today]);
 
   const toggleSymptom = (s: string) => {

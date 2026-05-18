@@ -57,21 +57,25 @@ export function HydrationCard({
     setMl(initialMl);
   }, [todayDate, initialMl]);
 
-  // When the user changes the selected date on the card, fetch that day's hydration.
-  useEffect(() => {
-    if (selectedDate === todayDate) {
+  // Called when the user explicitly picks a date on the card itself (not from parent navigation).
+  // Fetches that day's hydration value so the +/- buttons modify the correct row.
+  const pickDate = async (newDate: string) => {
+    setSelectedDate(newDate);
+    if (newDate === todayDate) {
+      // Back in sync with the dashboard's date — use whatever the server sent
       setMl(initialMl);
       return;
     }
-    supabase
+    const { data } = await supabase
       .from("wellness_entries")
       .select("hydration_ml")
-      .eq("logged_for_date", selectedDate)
-      .maybeSingle()
-      .then(({ data }) => {
-        setMl((data as { hydration_ml?: number } | null)?.hydration_ml ?? 0);
-      });
-  }, [selectedDate, todayDate, initialMl, supabase]);
+      .eq("user_id", userId)
+      .eq("logged_for_date", newDate)
+      .maybeSingle();
+    setMl(
+      (data as { hydration_ml?: number } | null)?.hydration_ml ?? 0
+    );
+  };
 
   const save = (nextMl: number) => {
     const clamped = Math.max(0, Math.min(targetMl + 2000, Math.round(nextMl)));
@@ -127,24 +131,24 @@ export function HydrationCard({
         type="date"
         value={selectedDate}
         max={today}
-        onChange={(e) => setSelectedDate(e.target.value)}
+        onChange={(e) => pickDate(e.target.value)}
         className="w-full bg-bg border border-border rounded-sm px-3 py-2 text-sm numeric"
       />
       <div className="flex gap-2 flex-wrap">
         <button
-          onClick={() => setSelectedDate(today)}
+          onClick={() => pickDate(today)}
           className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
         >
           Today
         </button>
         <button
-          onClick={() => setSelectedDate(shiftDateStr(today, -1))}
+          onClick={() => pickDate(shiftDateStr(today, -1))}
           className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
         >
           Yesterday
         </button>
         <button
-          onClick={() => setSelectedDate(shiftDateStr(today, -2))}
+          onClick={() => pickDate(shiftDateStr(today, -2))}
           className="text-xs text-text-muted bg-surface-muted px-2.5 py-1 rounded-sm"
         >
           2 days ago

@@ -35,30 +35,41 @@ export default function TrendsPage() {
   useEffect(() => {
     const since = subDays(new Date(), range).toISOString();
     setLoading(true);
-    Promise.all([
-      supabase.from("profiles").select("unit_system").single(),
-      supabase
-        .from("weight_entries")
-        .select("*")
-        .gte("logged_at", since)
-        .order("logged_at", { ascending: true }),
-      supabase
-        .from("food_logs")
-        .select("*")
-        .gte("eaten_at", since)
-        .order("eaten_at", { ascending: true }),
-      supabase
-        .from("wellness_entries")
-        .select("*")
-        .gte("logged_for_date", since.slice(0, 10))
-        .order("logged_for_date", { ascending: true }),
-    ]).then(([p, w, f, m]) => {
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      const [p, w, f, m] = await Promise.all([
+        supabase.from("profiles").select("unit_system").eq("id", user.id).single(),
+        supabase
+          .from("weight_entries")
+          .select("*")
+          .eq("user_id", user.id)
+          .gte("logged_at", since)
+          .order("logged_at", { ascending: true }),
+        supabase
+          .from("food_logs")
+          .select("*")
+          .eq("user_id", user.id)
+          .gte("eaten_at", since)
+          .order("eaten_at", { ascending: true }),
+        supabase
+          .from("wellness_entries")
+          .select("*")
+          .eq("user_id", user.id)
+          .gte("logged_for_date", since.slice(0, 10))
+          .order("logged_for_date", { ascending: true }),
+      ]);
       if (p.data?.unit_system) setUnit(p.data.unit_system as "kg" | "lb");
       setWeights((w.data ?? []) as WeightEntry[]);
       setFoodLogs((f.data ?? []) as FoodLog[]);
       setWellnessLogs((m.data ?? []) as WellnessEntry[]);
       setLoading(false);
-    });
+    })();
   }, [range, supabase]);
 
   const chartData = useMemo(() => {
@@ -234,12 +245,19 @@ function ExportCard() {
 
   const exportCsv = async () => {
     setExporting(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setExporting(false);
+      return;
+    }
     const [{ data: weights }, { data: foods }, { data: ex }, { data: well }] =
       await Promise.all([
-        supabase.from("weight_entries").select("*"),
-        supabase.from("food_logs").select("*"),
-        supabase.from("exercise_logs").select("*"),
-        supabase.from("wellness_entries").select("*"),
+        supabase.from("weight_entries").select("*").eq("user_id", user.id),
+        supabase.from("food_logs").select("*").eq("user_id", user.id),
+        supabase.from("exercise_logs").select("*").eq("user_id", user.id),
+        supabase.from("wellness_entries").select("*").eq("user_id", user.id),
       ]);
 
     const toCsv = (rows: any[]) => {

@@ -88,12 +88,37 @@ export default async function CoachClientPage({
   const unit = clientProfile.unit_system;
   const latest = ws[ws.length - 1];
 
-  // Group food logs by date
+  // Use the CLIENT's timezone (from their profile) to bucket entries by their
+  // local day, not UTC. Falls back to UTC if the client hasn't loaded the app
+  // since timezone-persist went live.
+  const clientTz = clientProfile.timezone || "UTC";
+  const localDayFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: clientTz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const localTimeFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: clientTz,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  // Group food logs by client's local date
   const foodByDay = new Map<string, FoodLog[]>();
   for (const f of fs) {
-    const day = f.eaten_at.slice(0, 10);
+    const day = localDayFormatter.format(new Date(f.eaten_at));
     if (!foodByDay.has(day)) foodByDay.set(day, []);
     foodByDay.get(day)!.push(f);
+  }
+
+  // Group exercise logs by client's local date
+  const exerciseByDay = new Map<string, ExerciseLog[]>();
+  for (const e of es) {
+    const day = localDayFormatter.format(new Date(e.performed_at));
+    if (!exerciseByDay.has(day)) exerciseByDay.set(day, []);
+    exerciseByDay.get(day)!.push(e);
   }
 
   // Weekly avg mood
@@ -251,7 +276,11 @@ export default async function CoachClientPage({
                   {items.slice(0, 8).map((i) => (
                     <li key={i.id} className="flex justify-between">
                       <span className="truncate">
-                        <span className="capitalize">{i.meal_type}</span> · {i.food_name_snapshot}
+                        <span className="capitalize">{i.meal_type}</span>
+                        <span className="text-text-muted/70">
+                          {" "}· {localTimeFormatter.format(new Date(i.eaten_at))}
+                        </span>{" "}
+                        · {i.food_name_snapshot}
                         {i.servings !== 1 && ` × ${i.servings}`}
                       </span>
                       <span className="numeric shrink-0 ml-2">
@@ -269,6 +298,47 @@ export default async function CoachClientPage({
           {foodByDay.size === 0 && (
             <p className="text-center text-text-muted text-sm py-6">
               No food logs in the past week.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Exercise by day */}
+      <section>
+        <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
+          Movement log (last 7 days)
+        </p>
+        <div className="space-y-2">
+          {Array.from(exerciseByDay.entries()).map(([day, items]) => {
+            const totalMin = items.reduce((s, i) => s + i.duration_minutes, 0);
+            return (
+              <Card key={day}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium">
+                    {format(new Date(day), "EEE, MMM d")}
+                  </p>
+                  <p className="text-xs text-text-muted numeric">{totalMin} min</p>
+                </div>
+                <ul className="text-xs text-text-muted space-y-1">
+                  {items.map((i) => (
+                    <li key={i.id} className="flex justify-between">
+                      <span className="truncate">
+                        <span className="text-text-muted/70">
+                          {localTimeFormatter.format(new Date(i.performed_at))}
+                        </span>{" "}
+                        · {i.exercise_type}
+                        <span className="capitalize"> · {i.intensity}</span>
+                      </span>
+                      <span className="numeric shrink-0 ml-2">{i.duration_minutes} min</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            );
+          })}
+          {exerciseByDay.size === 0 && (
+            <p className="text-center text-text-muted text-sm py-6">
+              No movement logged in the past week.
             </p>
           )}
         </div>

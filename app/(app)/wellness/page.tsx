@@ -11,9 +11,14 @@ const MOOD_EMOJI = ["😔", "😐", "🙂", "😊", "🥰"];
 
 export default async function WellnessPage() {
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
   const { data: entries } = await supabase
     .from("wellness_entries")
     .select("*")
+    .eq("user_id", user.id)
     .order("logged_for_date", { ascending: false })
     .limit(60);
 

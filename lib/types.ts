@@ -9,6 +9,7 @@ export type Profile = {
   theme_preference: "system" | "light" | "dark";
   hydration_unit: "glasses" | "ml";
   hydration_target_ml: number;
+  timezone: string;
 };
 
 export type WeightEntry = {

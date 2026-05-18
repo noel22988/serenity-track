@@ -57,7 +57,7 @@ function LogFoodPageInner() {
   const [showCustomForm, setShowCustomForm] = useState(false);
 
   useEffect(() => {
-    // Fetch all foods (public + user's own) — limited
+    // Fetch all foods (public + user's own) — RLS already scopes correctly
     supabase
       .from("foods")
       .select("*")
@@ -66,31 +66,37 @@ function LogFoodPageInner() {
       .limit(500)
       .then(({ data }) => setFoods((data ?? []) as Food[]));
 
-    // Recent: last 20 distinct foods user has logged
-    supabase
-      .from("food_logs")
-      .select("food_id, food_name_snapshot, calories, servings")
-      .order("eaten_at", { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        const seen = new Set<string>();
-        const r: Food[] = [];
-        for (const row of data ?? []) {
-          const key = row.food_name_snapshot;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          r.push({
-            id: row.food_id ?? `recent-${key}`,
-            user_id: null,
-            name: row.food_name_snapshot,
-            calories_per_serving: Number(row.calories) / Number(row.servings || 1),
-            serving_size: null,
-            is_custom: false,
-            is_favorite: false,
-          });
-        }
-        setRecent(r.slice(0, 8));
-      });
+    // Recent: last 20 distinct foods user has logged — must filter by user_id
+    // explicitly so a coach viewing this page sees only their own recents.
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("food_logs")
+        .select("food_id, food_name_snapshot, calories, servings")
+        .eq("user_id", user.id)
+        .order("eaten_at", { ascending: false })
+        .limit(20);
+      const seen = new Set<string>();
+      const r: Food[] = [];
+      for (const row of data ?? []) {
+        const key = row.food_name_snapshot;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        r.push({
+          id: row.food_id ?? `recent-${key}`,
+          user_id: null,
+          name: row.food_name_snapshot,
+          calories_per_serving: Number(row.calories) / Number(row.servings || 1),
+          serving_size: null,
+          is_custom: false,
+          is_favorite: false,
+        });
+      }
+      setRecent(r.slice(0, 8));
+    })();
   }, [supabase]);
 
   const filtered = useMemo(() => {
