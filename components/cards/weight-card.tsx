@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { format } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { kgToLb } from "@/lib/utils";
 import type { WeightEntry } from "@/lib/types";
+
+type SparkPoint = { value: number; date: Date };
 
 export function WeightCard({
   entries,
@@ -22,11 +25,14 @@ export function WeightCard({
   const isPastView = !!forDate;
   const href = forDate ? `/log/weight?date=${forDate}` : "/log/weight";
 
-  // Sparkline data — always built from the full recent history
-  const sparklineData = [...entries]
+  // Build sparkline points (chronological order, last 14 entries)
+  const sparkPoints: SparkPoint[] = [...entries]
     .reverse()
     .slice(-14)
-    .map((d) => Number(d.weight_kg));
+    .map((d) => ({
+      value: unit === "kg" ? Number(d.weight_kg) : kgToLb(Number(d.weight_kg)),
+      date: new Date(d.logged_at),
+    }));
 
   if (isPastView) {
     const dayEntries = [...(weightsForDay ?? [])].sort(
@@ -61,7 +67,7 @@ export function WeightCard({
               </span>
             )}
           </div>
-          {sparklineData.length >= 2 && <Sparkline data={sparklineData} />}
+          {sparkPoints.length >= 2 && <Sparkline points={sparkPoints} unit={unit} />}
         </Card>
       </Link>
     );
@@ -111,35 +117,124 @@ export function WeightCard({
             </span>
           )}
         </div>
-        {sparklineData.length >= 2 && <Sparkline data={sparklineData} />}
+        {sparkPoints.length >= 2 && <Sparkline points={sparkPoints} unit={unit} />}
       </Card>
     </Link>
   );
 }
 
-function Sparkline({ data }: { data: number[] }) {
-  const W = 280;
-  const H = 50;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+function Sparkline({
+  points,
+  unit,
+}: {
+  points: SparkPoint[];
+  unit: "kg" | "lb";
+}) {
+  const W = 300;
+  const H = 90;
+  const padL = 28; // space for Y labels
+  const padR = 6;
+  const padT = 8;
+  const padB = 18; // space for X labels
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
+  const values = points.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
   const range = max - min || 1;
-  const points = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * W;
-      const y = H - ((v - min) / range) * (H - 8) - 4;
-      return `${x},${y}`;
-    })
-    .join(" ");
+
+  const xy = points.map((p, i) => {
+    const x = padL + (i / (points.length - 1)) * chartW;
+    const y = padT + chartH - ((p.value - min) / range) * chartH;
+    return { x, y, ...p };
+  });
+
+  const pathPoints = xy.map((p) => `${p.x},${p.y}`).join(" ");
+
+  const firstDate = format(points[0].date, "MMM d");
+  const lastDate = format(points[points.length - 1].date, "MMM d");
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-12" aria-hidden="true">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Weight trend">
+      {/* Faint baseline at the bottom of the chart area */}
+      <line
+        x1={padL}
+        y1={padT + chartH}
+        x2={W - padR}
+        y2={padT + chartH}
+        stroke="var(--border)"
+        strokeWidth={0.5}
+      />
+
+      {/* Y-axis labels: max at top, min at bottom */}
+      <text
+        x={padL - 4}
+        y={padT + 4}
+        textAnchor="end"
+        fontSize="9"
+        fill="var(--text-muted)"
+        className="numeric"
+      >
+        {max.toFixed(1)}
+      </text>
+      <text
+        x={padL - 4}
+        y={padT + chartH + 3}
+        textAnchor="end"
+        fontSize="9"
+        fill="var(--text-muted)"
+        className="numeric"
+      >
+        {min.toFixed(1)}
+      </text>
+
+      {/* Unit label */}
+      <text
+        x={padL - 4}
+        y={padT + chartH / 2 + 3}
+        textAnchor="end"
+        fontSize="8"
+        fill="var(--text-muted)"
+        opacity={0.6}
+      >
+        {unit}
+      </text>
+
+      {/* X-axis labels: first and last date */}
+      <text
+        x={padL}
+        y={H - 4}
+        textAnchor="start"
+        fontSize="9"
+        fill="var(--text-muted)"
+      >
+        {firstDate}
+      </text>
+      <text
+        x={W - padR}
+        y={H - 4}
+        textAnchor="end"
+        fontSize="9"
+        fill="var(--text-muted)"
+      >
+        {lastDate}
+      </text>
+
+      {/* The line */}
       <polyline
         fill="none"
         stroke="var(--primary)"
         strokeWidth={2.2}
         strokeLinecap="round"
         strokeLinejoin="round"
-        points={points}
+        points={pathPoints}
       />
+
+      {/* Data points */}
+      {xy.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={1.8} fill="var(--primary)" />
+      ))}
     </svg>
   );
 }
