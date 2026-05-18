@@ -2,16 +2,72 @@
 
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
-import { formatWeight, kgToLb } from "@/lib/utils";
+import { kgToLb } from "@/lib/utils";
 import type { WeightEntry } from "@/lib/types";
 
 export function WeightCard({
   entries,
   unit,
+  forDate,
+  weightsForDay,
 }: {
+  /** All recent entries (used for the sparkline + monthly delta on today's view). */
   entries: WeightEntry[];
   unit: "kg" | "lb";
+  /** When set, the card switches to "viewing past day" mode. */
+  forDate?: string;
+  /** Entries logged on `forDate` in the user's tz (computed by parent). */
+  weightsForDay?: WeightEntry[];
 }) {
+  const isPastView = !!forDate;
+  const href = forDate ? `/log/weight?date=${forDate}` : "/log/weight";
+
+  // Sparkline data — always built from the full recent history
+  const sparklineData = [...entries]
+    .reverse()
+    .slice(-14)
+    .map((d) => Number(d.weight_kg));
+
+  if (isPastView) {
+    const dayEntries = [...(weightsForDay ?? [])].sort(
+      (a, b) => new Date(b.logged_at).getTime() - new Date(a.logged_at).getTime()
+    );
+    const dayLatest = dayEntries[0];
+
+    return (
+      <Link href={href} className="block">
+        <Card>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-text-muted">Weight on this day</span>
+            {dayEntries.length > 1 && (
+              <span className="text-[11px] text-text-muted">
+                {dayEntries.length} weigh-ins
+              </span>
+            )}
+          </div>
+          <div className="flex items-baseline gap-1.5 mb-3">
+            {dayLatest ? (
+              <>
+                <span className="text-4xl font-light numeric">
+                  {unit === "kg"
+                    ? Number(dayLatest.weight_kg).toFixed(1)
+                    : kgToLb(Number(dayLatest.weight_kg)).toFixed(1)}
+                </span>
+                <span className="text-text-muted">{unit}</span>
+              </>
+            ) : (
+              <span className="text-text-muted text-sm">
+                Nothing logged this day — tap to add
+              </span>
+            )}
+          </div>
+          {sparklineData.length >= 2 && <Sparkline data={sparklineData} />}
+        </Card>
+      </Link>
+    );
+  }
+
+  // --- Today (default) view ---
   const latest = entries[0];
   const monthAgo = entries.find((e) => {
     const d = new Date(e.logged_at);
@@ -22,14 +78,13 @@ export function WeightCard({
   const monthEarliest = entries[entries.length - 1];
   const compareTo = monthAgo ?? monthEarliest;
   const delta =
-    latest && compareTo ? latest.weight_kg - compareTo.weight_kg : 0;
+    latest && compareTo
+      ? Number(latest.weight_kg) - Number(compareTo.weight_kg)
+      : 0;
   const deltaDisplay = unit === "kg" ? delta : delta / 0.45359237;
 
-  // Sparkline points
-  const data = [...entries].reverse().slice(-14);
-
   return (
-    <Link href="/log/weight" className="block">
+    <Link href={href} className="block">
       <Card>
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-text-muted">Current weight</span>
@@ -45,16 +100,18 @@ export function WeightCard({
             <>
               <span className="text-4xl font-light numeric">
                 {unit === "kg"
-                  ? latest.weight_kg.toFixed(1)
-                  : kgToLb(latest.weight_kg).toFixed(1)}
+                  ? Number(latest.weight_kg).toFixed(1)
+                  : kgToLb(Number(latest.weight_kg)).toFixed(1)}
               </span>
               <span className="text-text-muted">{unit}</span>
             </>
           ) : (
-            <span className="text-text-muted text-sm">Not logged yet — tap to begin</span>
+            <span className="text-text-muted text-sm">
+              Not logged yet — tap to begin
+            </span>
           )}
         </div>
-        {data.length >= 2 && <Sparkline data={data.map((d) => d.weight_kg)} />}
+        {sparklineData.length >= 2 && <Sparkline data={sparklineData} />}
       </Card>
     </Link>
   );

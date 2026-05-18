@@ -136,6 +136,17 @@ export default async function TodayPage({
   const prevDate = shiftDate(viewingDate, -1);
   const nextDate = shiftDate(viewingDate, 1);
 
+  // Filter weight entries to those falling on the viewed date in the user's tz
+  const dateFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const weightsForDay = ((weights ?? []) as WeightEntry[]).filter(
+    (w) => dateFormatter.format(new Date(w.logged_at)) === viewingDate
+  );
+
   // Format the viewed date for display
   const viewedDateObj = new Date(viewingDate + "T12:00:00Z"); // mid-day to dodge tz edges
   const viewedWeekday = new Intl.DateTimeFormat("en-US", {
@@ -216,7 +227,12 @@ export default async function TodayPage({
 
       {isViewingToday && <StreakBadge streak={streak} />}
 
-      <WeightCard entries={(weights ?? []) as WeightEntry[]} unit={unit} />
+      <WeightCard
+        entries={(weights ?? []) as WeightEntry[]}
+        unit={unit}
+        forDate={isViewingToday ? undefined : viewingDate}
+        weightsForDay={isViewingToday ? undefined : weightsForDay}
+      />
 
       <div className="flex gap-3">
         <NourishmentCard

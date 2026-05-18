@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -16,13 +16,33 @@ function toLocalInputValue(d: Date) {
   );
 }
 
+function defaultWhen(dateParam: string | null): string {
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const [y, m, d] = dateParam.split("-").map(Number);
+    // Default to 8am on the chosen day — typical morning weigh-in time
+    const dt = new Date(y, m - 1, d, 8, 0, 0);
+    return toLocalInputValue(dt);
+  }
+  return toLocalInputValue(new Date());
+}
+
 export default function LogWeightPage() {
+  return (
+    <Suspense>
+      <LogWeightPageInner />
+    </Suspense>
+  );
+}
+
+function LogWeightPageInner() {
   const router = useRouter();
-  const supabase = createClient();
+  const searchParams = useSearchParams();
+  const dateParam = searchParams?.get("date") ?? null;
+  const supabase = useMemo(() => createClient(), []);
   const [unit, setUnit] = useState<"kg" | "lb">("kg");
   const [value, setValue] = useState("");
   const [note, setNote] = useState("");
-  const [when, setWhen] = useState<string>(toLocalInputValue(new Date()));
+  const [when, setWhen] = useState<string>(defaultWhen(dateParam));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,7 +83,7 @@ export default function LogWeightPage() {
       setSaving(false);
       return;
     }
-    router.push("/");
+    router.push(dateParam ? `/?date=${dateParam}` : "/");
     router.refresh();
   };
 
