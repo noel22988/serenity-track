@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 
@@ -23,7 +23,14 @@ export function MoodQuickPick({
 }) {
   const [mood, setMood] = useState<number | null>(initialMood);
   const [isPending, startTransition] = useTransition();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+
+  // When the dashboard navigates between days, the parent passes new
+  // `todayDate` and `initialMood` props. Reset the local selection to match
+  // the date being viewed; otherwise the previous day's emoji stays sticky.
+  useEffect(() => {
+    setMood(initialMood);
+  }, [todayDate, initialMood]);
 
   const setMoodValue = (v: number) => {
     setMood(v);

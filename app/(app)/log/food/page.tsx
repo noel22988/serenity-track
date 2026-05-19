@@ -467,13 +467,13 @@ function CustomFoodForm({
           value={calories}
           onChange={(e) => setCalories(e.target.value)}
           placeholder="Calories"
-          className="flex-1 bg-bg border border-border rounded-sm px-3 py-2 text-sm numeric"
+          className="flex-1 min-w-0 bg-bg border border-border rounded-sm px-3 py-2 text-sm numeric [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <input
           value={serving}
           onChange={(e) => setServing(e.target.value)}
-          placeholder="Serving (optional)"
-          className="flex-1 bg-bg border border-border rounded-sm px-3 py-2 text-sm"
+          placeholder="Serving size"
+          className="flex-1 min-w-0 bg-bg border border-border rounded-sm px-3 py-2 text-sm"
         />
       </div>
       <div className="flex gap-2">
