@@ -2,12 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { WeightCard } from "@/components/cards/weight-card";
 import { NourishmentCard, MovementCard } from "@/components/cards/stat-cards";
 import { MoodQuickPick } from "@/components/cards/mood-quick-pick";
 import { HydrationCard } from "@/components/cards/hydration-card";
 import { StreakBadge } from "@/components/cards/streak-badge";
+import { DashboardFoodList } from "@/components/cards/dashboard-food-list";
+import { DashboardExerciseList } from "@/components/cards/dashboard-exercise-list";
 import { TimezoneCookie } from "@/components/timezone-cookie";
 import { Card } from "@/components/ui/card";
 import { calculateStreak, greetingFor } from "@/lib/utils";
@@ -81,38 +83,50 @@ export default async function TodayPage({
     { data: exerciseToday },
     { data: wellness },
     { data: allLoggedDates },
+    { data: myClients },
   ] = await Promise.all([
     supabase
       .from("weight_entries")
       .select("*")
+      .eq("user_id", user.id)
       .gte("logged_at", ninetyDaysAgo.toISOString())
       .order("logged_at", { ascending: false }),
     supabase
       .from("food_logs")
       .select("*")
+      .eq("user_id", user.id)
       .gte("eaten_at", startOfDay.toISOString())
       .lte("eaten_at", endOfDay.toISOString())
       .order("eaten_at", { ascending: true }),
     supabase
       .from("exercise_logs")
       .select("*")
+      .eq("user_id", user.id)
       .gte("performed_at", startOfDay.toISOString())
       .lte("performed_at", endOfDay.toISOString())
       .order("performed_at", { ascending: true }),
     supabase
       .from("wellness_entries")
       .select("*")
+      .eq("user_id", user.id)
       .eq("logged_for_date", viewingDate)
       .maybeSingle(),
     supabase
       .from("food_logs")
       .select("eaten_at")
+      .eq("user_id", user.id)
       .gte("eaten_at", ninetyDaysAgo.toISOString()),
+    supabase
+      .from("coach_relationships")
+      .select("id")
+      .eq("coach_id", user.id),
   ]);
 
   const wellnessForDay = wellness as WellnessEntry | null;
   const foodEntries = (foodToday ?? []) as FoodLog[];
   const exerciseEntries = (exerciseToday ?? []) as ExerciseLog[];
+  const clientCount = (myClients ?? []).length;
+  const hasClients = clientCount > 0;
 
   // Streak (always based on real today, not viewing date)
   const allDates: Date[] = [
@@ -159,17 +173,25 @@ export default async function TodayPage({
     day: "numeric",
   }).format(viewedDateObj);
 
-  // Group food entries by meal type
-  const mealOrder: FoodLog["meal_type"][] = ["breakfast", "lunch", "dinner", "snack"];
-  const foodByMeal = new Map<FoodLog["meal_type"], FoodLog[]>();
-  for (const f of foodEntries) {
-    if (!foodByMeal.has(f.meal_type)) foodByMeal.set(f.meal_type, []);
-    foodByMeal.get(f.meal_type)!.push(f);
-  }
-
   return (
     <div className="px-4 pt-6 pb-4 space-y-3">
       <TimezoneCookie />
+
+      {/* Coach shortcut — visible if the current user has at least one client */}
+      {hasClients && (
+        <Link
+          href="/coach"
+          className="flex items-center justify-between bg-primary-soft text-text rounded-md px-3 py-2.5 text-sm"
+        >
+          <span className="flex items-center gap-2">
+            <Users size={14} />
+            Coach dashboard
+          </span>
+          <span className="text-xs text-text-muted">
+            {clientCount} client{clientCount === 1 ? "" : "s"} →
+          </span>
+        </Link>
+      )}
 
       {/* Date navigation */}
       <div className="flex items-center justify-between bg-surface rounded-md px-2 py-2">
@@ -245,78 +267,8 @@ export default async function TodayPage({
         />
       </div>
 
-      {/* Detailed food log for the day */}
-      {foodEntries.length > 0 && (
-        <Card>
-          <p className="text-sm font-medium mb-3">What was eaten</p>
-          <div className="space-y-3">
-            {mealOrder.map((meal) => {
-              const items = foodByMeal.get(meal);
-              if (!items || items.length === 0) return null;
-              const mealTotal = Math.round(
-                items.reduce((s, i) => s + Number(i.calories), 0)
-              );
-              return (
-                <div key={meal}>
-                  <div className="flex items-baseline justify-between mb-1">
-                    <p className="text-xs text-text-muted uppercase tracking-wider capitalize">
-                      {meal}
-                    </p>
-                    <p className="text-[11px] text-text-muted numeric">
-                      {mealTotal} kcal
-                    </p>
-                  </div>
-                  <ul className="space-y-1">
-                    {items.map((item) => (
-                      <li
-                        key={item.id}
-                        className="flex items-baseline justify-between text-sm"
-                      >
-                        <span className="text-text truncate flex-1 pr-2">
-                          {item.food_name_snapshot}
-                          {Number(item.servings) !== 1 && (
-                            <span className="text-text-muted text-xs ml-1">
-                              × {item.servings}
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-text-muted text-xs numeric shrink-0">
-                          {Math.round(Number(item.calories))}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      {/* Detailed exercise log for the day */}
-      {exerciseEntries.length > 0 && (
-        <Card>
-          <p className="text-sm font-medium mb-3">Movement</p>
-          <ul className="space-y-2">
-            {exerciseEntries.map((ex) => (
-              <li
-                key={ex.id}
-                className="flex items-baseline justify-between text-sm"
-              >
-                <span className="text-text">
-                  {ex.exercise_type}
-                  <span className="text-text-muted text-xs ml-1 capitalize">
-                    · {ex.intensity}
-                  </span>
-                </span>
-                <span className="text-text-muted text-xs numeric shrink-0">
-                  {ex.duration_minutes} min
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <DashboardFoodList entries={foodEntries} />
+      <DashboardExerciseList entries={exerciseEntries} />
 
       <MoodQuickPick
         initialMood={wellnessForDay?.mood_rating ?? null}
