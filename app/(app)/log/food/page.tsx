@@ -3,7 +3,15 @@
 import { Suspense, useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Search, Star, Plus, Minus, Calendar } from "lucide-react";
+import {
+  ArrowLeft,
+  Search,
+  Star,
+  Plus,
+  Minus,
+  Calendar,
+  AlertCircle,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { defaultMealType } from "@/lib/utils";
 import type { Food, FoodLog } from "@/lib/types";
@@ -14,6 +22,27 @@ const MEALS = [
   { value: "dinner", label: "Dinner" },
   { value: "snack", label: "Snack" },
 ] as const;
+
+/**
+ * TCM meal window guidance — hours expressed as float (e.g. 13.5 = 1:30 pm).
+ * Snack intentionally has no window (eat upon hunger).
+ */
+const MEAL_WINDOWS: Record<
+  FoodLog["meal_type"],
+  { startHour: number; endHour: number; label: string } | null
+> = {
+  breakfast: { startHour: 6, endHour: 9, label: "6 – 9 am" },
+  lunch: { startHour: 11, endHour: 13.5, label: "11 am – 1:30 pm" },
+  dinner: { startHour: 16, endHour: 19, label: "4 – 7 pm" },
+  snack: null,
+};
+
+function isInMealWindow(date: Date, meal: FoodLog["meal_type"]): boolean {
+  const w = MEAL_WINDOWS[meal];
+  if (!w) return true;
+  const hour = date.getHours() + date.getMinutes() / 60;
+  return hour >= w.startHour && hour <= w.endHour;
+}
 
 type Bin = { food: Food; servings: number };
 
@@ -244,6 +273,32 @@ function LogFoodPageInner() {
             2 days ago
           </button>
         </div>
+
+        {/* TCM meal window guidance */}
+        {(() => {
+          const w = MEAL_WINDOWS[meal];
+          if (!w) {
+            return (
+              <p className="text-[11px] text-text-muted mt-3">
+                Snack · eat upon hunger, in moderation
+              </p>
+            );
+          }
+          const inWindow = isInMealWindow(new Date(eatenAt), meal);
+          return inWindow ? (
+            <p className="text-[11px] text-text-muted mt-3">
+              TCM {meal} window · {w.label}
+            </p>
+          ) : (
+            <p className="text-[11px] text-warn mt-3 flex items-start gap-1.5">
+              <AlertCircle size={11} className="mt-px shrink-0" />
+              <span>
+                Outside the {meal} window ({w.label}). Logged either way —
+                noting it for reflection.
+              </span>
+            </p>
+          );
+        })()}
       </div>
 
       {/* Search */}

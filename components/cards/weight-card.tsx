@@ -228,6 +228,7 @@ function Sparkline({
         strokeWidth={2.2}
         strokeLinecap="round"
         strokeLinejoin="round"
+
         points={pathPoints}
       />
 
