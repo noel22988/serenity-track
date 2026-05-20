@@ -2,9 +2,10 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Trash2, AlertCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
+import { MEAL_WINDOWS, isInMealWindow } from "@/lib/meal-windows";
 import type { FoodLog } from "@/lib/types";
 
 const MEAL_ORDER: FoodLog["meal_type"][] = [
@@ -13,6 +14,14 @@ const MEAL_ORDER: FoodLog["meal_type"][] = [
   "dinner",
   "snack",
 ];
+
+function formatMealTime(eatenAt: string): string {
+  return new Date(eatenAt).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
 export function DashboardFoodList({ entries }: { entries: FoodLog[] }) {
   const router = useRouter();
@@ -43,52 +52,77 @@ export function DashboardFoodList({ entries }: { entries: FoodLog[] }) {
   return (
     <Card>
       <p className="text-sm font-medium mb-3">What was eaten</p>
-      <div className="space-y-3">
+      <div className="space-y-4">
         {MEAL_ORDER.map((meal) => {
           const items = byMeal.get(meal);
           if (!items || items.length === 0) return null;
           const mealTotal = Math.round(
             items.reduce((s, i) => s + Number(i.calories), 0)
           );
+          const window = MEAL_WINDOWS[meal];
           return (
             <div key={meal}>
               <div className="flex items-baseline justify-between mb-1">
-                <p className="text-xs text-text-muted uppercase tracking-wider capitalize">
-                  {meal}
+                <p className="text-xs text-text-muted uppercase tracking-wider">
+                  <span className="capitalize">{meal}</span>
+                  {window && (
+                    <span className="ml-1.5 normal-case tracking-normal text-text-muted/70">
+                      · {window.label}
+                    </span>
+                  )}
                 </p>
                 <p className="text-[11px] text-text-muted numeric">
                   {mealTotal} kcal
                 </p>
               </div>
               <ul className="space-y-1">
-                {items.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <span className="text-text truncate flex-1 pr-2">
-                      {item.food_name_snapshot}
-                      {Number(item.servings) !== 1 && (
-                        <span className="text-text-muted text-xs ml-1">
-                          × {item.servings}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-text-muted text-xs numeric shrink-0 mr-1">
-                      {Math.round(Number(item.calories))}
-                    </span>
-                    <button
-                      onClick={() =>
-                        handleDelete(item.id, item.food_name_snapshot)
-                      }
-                      disabled={pendingId === item.id}
-                      aria-label={`Delete ${item.food_name_snapshot}`}
-                      className="text-text-muted/40 hover:text-warn p-1.5 -mr-1 disabled:opacity-30"
+                {items.map((item) => {
+                  const eatenDate = new Date(item.eaten_at);
+                  const outOfWindow = !isInMealWindow(eatenDate, meal);
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between text-sm"
                     >
-                      <Trash2 size={14} />
-                    </button>
-                  </li>
-                ))}
+                      <span className="text-text truncate flex-1 pr-2 min-w-0">
+                        {item.food_name_snapshot}
+                        {Number(item.servings) !== 1 && (
+                          <span className="text-text-muted text-xs ml-1">
+                            × {item.servings}
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={`text-[11px] numeric shrink-0 mr-2 flex items-center gap-0.5 ${
+                          outOfWindow ? "text-warn" : "text-text-muted/70"
+                        }`}
+                        aria-label={
+                          outOfWindow
+                            ? `${formatMealTime(item.eaten_at)} — outside ${meal} window`
+                            : formatMealTime(item.eaten_at)
+                        }
+                      >
+                        {outOfWindow && (
+                          <AlertCircle size={10} className="shrink-0" />
+                        )}
+                        {formatMealTime(item.eaten_at)}
+                      </span>
+                      <span className="text-text-muted text-xs numeric shrink-0 mr-1 w-10 text-right">
+                        {Math.round(Number(item.calories))}
+                      </span>
+                      <button
+                        onClick={() =>
+                          handleDelete(item.id, item.food_name_snapshot)
+                        }
+                        disabled={pendingId === item.id}
+                        aria-label={`Delete ${item.food_name_snapshot}`}
+                        className="text-text-muted/40 hover:text-warn p-1.5 -mr-1 disabled:opacity-30"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           );

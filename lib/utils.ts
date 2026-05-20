@@ -5,30 +5,43 @@ export const lbToKg = (lb: number) => lb * KG_PER_LB;
 export const formatWeight = (kg: number, unit: "kg" | "lb") =>
   unit === "kg" ? `${kg.toFixed(1)} kg` : `${kgToLb(kg).toFixed(1)} lb`;
 
-// Streaks
-export function calculateStreak(loggedDates: Date[]): number {
+// Streaks — counts consecutive days (in the user's local timezone) with at
+// least one logged entry, ending at today (or yesterday if today is empty).
+export function calculateStreak(
+  loggedDates: Date[],
+  tz: string = "UTC"
+): number {
   if (loggedDates.length === 0) return 0;
-  const startOfDay = (d: Date) => {
-    const x = new Date(d);
-    x.setHours(0, 0, 0, 0);
-    return x;
+
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  // Build a set of YYYY-MM-DD strings in the user's local tz
+  const loggedDays = new Set(loggedDates.map((d) => fmt.format(d)));
+  const today = fmt.format(new Date());
+
+  // Shift a YYYY-MM-DD string by N days (positive = future)
+  const shiftDay = (s: string, n: number) => {
+    const [y, m, d] = s.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + n));
+    return dt.toISOString().slice(0, 10);
   };
-  const subDays = (d: Date, n: number) => {
-    const x = new Date(d);
-    x.setDate(x.getDate() - n);
-    return x;
-  };
-  const days = new Set(loggedDates.map((d) => startOfDay(d).getTime()));
-  let streak = 0;
-  let cursor = startOfDay(new Date());
-  if (!days.has(cursor.getTime())) {
-    const y = subDays(cursor, 1);
-    if (!days.has(y.getTime())) return 0;
-    cursor = y;
+
+  let cursor = today;
+  if (!loggedDays.has(cursor)) {
+    const yesterday = shiftDay(cursor, -1);
+    if (!loggedDays.has(yesterday)) return 0;
+    cursor = yesterday;
   }
-  while (days.has(cursor.getTime())) {
+
+  let streak = 0;
+  while (loggedDays.has(cursor)) {
     streak++;
-    cursor = subDays(cursor, 1);
+    cursor = shiftDay(cursor, -1);
   }
   return streak;
 }

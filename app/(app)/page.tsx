@@ -133,7 +133,7 @@ export default async function TodayPage({
     ...(weights ?? []).map((w: WeightEntry) => new Date(w.logged_at)),
     ...(allLoggedDates ?? []).map((f: { eaten_at: string }) => new Date(f.eaten_at)),
   ];
-  const streak = calculateStreak(allDates);
+  const streak = calculateStreak(allDates, tz);
 
   const unit = profile?.unit_system ?? "kg";
   const greeting = greetingFor(now);
