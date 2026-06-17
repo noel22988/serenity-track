@@ -220,7 +220,7 @@ const { start: startOfDay, end: endOfDay } = dayBoundsInTz(viewingDate, tz);
         )}
       </header>
 
-      {streak > 0 && <StreakBadge days={streak} />}
+      {streak > 0 && <StreakBadge streak={streak} />}
 
       <WeightCard
         entries={(weights ?? []) as WeightEntry[]}
