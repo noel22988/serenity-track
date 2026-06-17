@@ -49,7 +49,7 @@ export default async function DashboardPage({
       ? searchParams.date
       : todayStr;
 
-  const { startOfDay, endOfDay } = dayBoundsInTz(viewingDate, tz);
+const { start: startOfDay, end: endOfDay } = dayBoundsInTz(viewingDate, tz);
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
