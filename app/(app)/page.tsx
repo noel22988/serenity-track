@@ -24,29 +24,16 @@ import type {
 
 export const dynamic = "force-dynamic";
 
-// Shift a YYYY-MM-DD date string by n days
-function shiftDate(s: string, deltaDays: number): string {
+function shiftDate(s: string, n: number) {
   const [y, m, d] = s.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
   return dt.toISOString().slice(0, 10);
 }
 
-// Relative human-readable label for a date vs today
-function relativeLabel(viewingDate: string, todayStr: string): string {
-  if (viewingDate === todayStr) return "Today";
-  if (viewingDate === shiftDate(todayStr, -1)) return "Yesterday";
-  if (viewingDate === shiftDate(todayStr, 1)) return "Tomorrow";
-  const a = new Date(viewingDate);
-  const b = new Date(todayStr);
-  const diff = Math.round((a.getTime() - b.getTime()) / 86_400_000);
-  if (diff < 0) return `${Math.abs(diff)} days ago`;
-  return `in ${diff} days`;
-}
-
-export default async function TodayPage({
+export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: { date?: string };
+  searchParams: { date?: string };
 }) {
   const supabase = createClient();
   const {
@@ -54,27 +41,26 @@ export default async function TodayPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = (await supabase
+  const cookieStore = cookies();
+  const tz = cookieStore.get("tz")?.value || "UTC";
+  const todayStr = dateStringInTz(new Date(), tz);
+  const viewingDate =
+    searchParams.date && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date)
+      ? searchParams.date
+      : todayStr;
+
+  const { startOfDay, endOfDay } = dayBoundsInTz(viewingDate, tz);
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+  // Fetch profile first (needed for day counter, units, hydration prefs)
+  const { data: profileRow } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
-    .single()) as { data: Profile | null };
-
-  const tz = cookies().get("tz")?.value || "UTC";
-  const now = new Date();
-  const todayStr = dateStringInTz(now, tz);
-
-  // Which day are we viewing?
-  const viewingDate =
-    searchParams?.date && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date)
-      ? searchParams.date
-      : todayStr;
-  const isViewingToday = viewingDate === todayStr;
-  const isFuture = viewingDate > todayStr;
-
-  const { start: startOfDay, end: endOfDay } = dayBoundsInTz(viewingDate, tz);
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    .single();
+  const profile = profileRow as Profile | null;
+  const unit = profile?.unit_system ?? "kg";
 
   // Parallel fetch
   const [
@@ -128,25 +114,7 @@ export default async function TodayPage({
   const clientCount = (myClients ?? []).length;
   const hasClients = clientCount > 0;
 
-  // Streak (always based on real today, not viewing date)
-  const allDates: Date[] = [
-    ...(weights ?? []).map((w: WeightEntry) => new Date(w.logged_at)),
-    ...(allLoggedDates ?? []).map((f: { eaten_at: string }) => new Date(f.eaten_at)),
-  ];
-  const streak = calculateStreak(allDates, tz);
-
-  const unit = profile?.unit_system ?? "kg";
-  const greeting = greetingFor(now);
-  const dayNumber = profile?.treatment_start_date
-    ? Math.max(
-        1,
-        Math.floor(
-          (now.getTime() - new Date(profile.treatment_start_date).getTime()) /
-            86400000
-        ) + 1
-      )
-    : null;
-
+  const isViewingToday = viewingDate === todayStr;
   const prevDate = shiftDate(viewingDate, -1);
   const nextDate = shiftDate(viewingDate, 1);
 
@@ -161,17 +129,33 @@ export default async function TodayPage({
     (w) => dateFormatter.format(new Date(w.logged_at)) === viewingDate
   );
 
-  // Format the viewed date for display
-  const viewedDateObj = new Date(viewingDate + "T12:00:00Z"); // mid-day to dodge tz edges
-  const viewedWeekday = new Intl.DateTimeFormat("en-US", {
+  const allDates = (allLoggedDates ?? []).map(
+    (r: { eaten_at: string }) => new Date(r.eaten_at)
+  );
+  const streak = calculateStreak(allDates, tz);
+
+  // Format the viewing date header
+  const [vy, vm, vd] = viewingDate.split("-").map(Number);
+  const viewingDateObj = new Date(Date.UTC(vy, vm - 1, vd));
+  const dayHeader = new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC",
     weekday: "long",
-  }).format(viewedDateObj);
-  const viewedMonthDay = new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
     month: "short",
     day: "numeric",
-  }).format(viewedDateObj);
+  }).format(viewingDateObj).toUpperCase();
+
+  // Day counter from treatment_start_date
+  let dayCount: number | null = null;
+  if (profile?.treatment_start_date) {
+    const [sy, sm, sd] = profile.treatment_start_date.split("-").map(Number);
+    const start = Date.UTC(sy, sm - 1, sd);
+    const [ty, tm, td] = todayStr.split("-").map(Number);
+    const today = Date.UTC(ty, tm - 1, td);
+    dayCount = Math.floor((today - start) / 86_400_000) + 1;
+  }
+
+  const greeting = greetingFor(new Date());
+  const displayName = profile?.display_name || "friend";
 
   return (
     <div className="px-4 pt-6 pb-4 space-y-3">
@@ -194,66 +178,56 @@ export default async function TodayPage({
       )}
 
       {/* Date navigation */}
-      <div className="flex items-center justify-between bg-surface rounded-md px-2 py-2">
+      <div className="flex items-center justify-between bg-surface rounded-md px-3 py-2 border border-border">
         <Link
           href={`/?date=${prevDate}`}
+          className="text-text-muted p-1"
           aria-label="Previous day"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-muted"
         >
           <ChevronLeft size={20} />
         </Link>
         <div className="text-center">
-          <p className="text-[11px] text-text-muted tracking-wider uppercase">
-            {viewedWeekday} · {viewedMonthDay}
+          <p className="text-xs text-text-muted uppercase tracking-wider">
+            {dayHeader}
           </p>
-          <p className="text-xs text-text mt-0.5">
-            {relativeLabel(viewingDate, todayStr)}
-            {!isViewingToday && (
-              <>
-                {" · "}
-                <Link href="/" className="text-primary font-medium">
-                  Back to today
-                </Link>
-              </>
-            )}
-          </p>
+          {isViewingToday ? (
+            <p className="text-sm">Today</p>
+          ) : (
+            <Link href="/" className="text-[11px] text-primary">
+              Back to today
+            </Link>
+          )}
         </div>
         <Link
-          href={isFuture ? "#" : `/?date=${nextDate}`}
-          aria-label="Next day"
-          aria-disabled={nextDate > todayStr}
-          className={`w-9 h-9 rounded-full flex items-center justify-center ${
-            nextDate > todayStr
-              ? "text-border pointer-events-none"
-              : "text-text-muted hover:bg-surface-muted"
+          href={`/?date=${nextDate}`}
+          className={`text-text-muted p-1 ${
+            isViewingToday ? "opacity-30 pointer-events-none" : ""
           }`}
+          aria-label="Next day"
         >
           <ChevronRight size={20} />
         </Link>
       </div>
 
-      {/* Greeting (only when viewing today) */}
-      {isViewingToday && (
-        <header className="mb-2">
-          <h1 className="font-serif text-2xl font-medium mt-1">
-            {greeting}
-            {profile?.display_name ? `, ${profile.display_name}` : ""}
-          </h1>
-          {dayNumber !== null && (
-            <p className="text-xs text-text-muted mt-1">
-              Day {dayNumber} of your journey · gentle progress
-            </p>
-          )}
-        </header>
-      )}
+      <header>
+        <h1 className="text-3xl font-serif font-light">
+          {greeting}, {displayName}
+        </h1>
+        {dayCount !== null && (
+          <p className="text-text-muted text-sm mt-1">
+            Day {dayCount} of your journey · gentle progress
+          </p>
+        )}
+      </header>
 
-      {isViewingToday && <StreakBadge streak={streak} />}
+      {streak > 0 && <StreakBadge days={streak} />}
 
       <WeightCard
         entries={(weights ?? []) as WeightEntry[]}
         unit={unit}
         forDate={isViewingToday ? undefined : viewingDate}
         weightsForDay={isViewingToday ? undefined : weightsForDay}
+        startingWeightKg={profile?.starting_weight_kg}
       />
 
       <div className="flex gap-3">
@@ -285,25 +259,29 @@ export default async function TodayPage({
         targetMl={profile?.hydration_target_ml ?? 2000}
       />
 
-      {/* Show journal notes if there are any for the day */}
+      {/* Journal */}
       {wellnessForDay?.journal_notes && (
         <Card>
-          <p className="text-sm font-medium mb-2">Journal</p>
-          <p className="text-sm whitespace-pre-wrap leading-relaxed text-text">
+          <p className="text-xs text-text-muted uppercase tracking-wider mb-1.5">
+            Journal
+          </p>
+          <p className="text-sm whitespace-pre-wrap">
             {wellnessForDay.journal_notes}
           </p>
         </Card>
       )}
 
-      {/* Show symptoms if any */}
+      {/* Symptoms / notes */}
       {wellnessForDay?.symptoms && wellnessForDay.symptoms.length > 0 && (
         <Card>
-          <p className="text-sm font-medium mb-2">Symptoms noted</p>
+          <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
+            Today's notes
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {wellnessForDay.symptoms.map((s) => (
               <span
                 key={s}
-                className="text-xs bg-accent/30 text-text px-2.5 py-1 rounded-full"
+                className="text-xs bg-surface-muted text-text px-2.5 py-1 rounded-full"
               >
                 {s}
               </span>
